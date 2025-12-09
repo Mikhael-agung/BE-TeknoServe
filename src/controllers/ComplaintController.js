@@ -68,7 +68,7 @@ class ComplaintController {
     }
   }
 
-  static async getDetail(req, res) {
+    static async getDetail(req, res) {
     try {
       const { id } = req.params;
       const userId = req.user.id;
@@ -81,14 +81,21 @@ class ComplaintController {
         );
       }
 
+      // Access check
       if (complaint.user_id !== userId && !['admin', 'teknisi'].includes(req.user.role)) {
         return res.status(403).json(
           errorResponse('Anda tidak memiliki akses ke komplain ini', 403)
         );
       }
 
+      // GET STATUS HISTORY
+      const statusHistory = await Complaint.getStatusHistory(id);
+
       res.json(
-        successResponse(complaint, 'Detail komplain berhasil diambil')
+        successResponse({
+          ...complaint,
+          status_history: statusHistory
+        }, 'Detail komplain berhasil diambil')
       );
 
     } catch (error) {
@@ -99,21 +106,20 @@ class ComplaintController {
     }
   }
 
-  // ✅ TAMBAH METHOD INI
   static async updateStatus(req, res) {
     try {
       const { id } = req.params;
-      const { status, resolution_notes } = req.body;
+      const { status, alasan } = req.body;
+      const userId = req.user.id;
       const userRole = req.user.role;
 
-      // Validasi: hanya teknisi/admin yang bisa update status
+      // Validasi
       if (!['teknisi', 'admin'].includes(userRole)) {
         return res.status(403).json(
           errorResponse('Hanya teknisi atau admin yang dapat mengupdate status', 403)
         );
       }
 
-      // Validasi status
       const validStatuses = ['pending', 'diproses', 'selesai', 'ditolak'];
       if (!status || !validStatuses.includes(status)) {
         return res.status(400).json(
@@ -121,22 +127,28 @@ class ComplaintController {
         );
       }
 
+      // insert Ke complaint_statuses (AUDIT TRAIL)
+      const { error: historyError } = await supabase
+        .from('complaint_statuses')
+        .insert([{
+          complaint_id: id,
+          status: status,
+          teknisi_id: userRole === 'teknisi' ? userId : null,
+          alasan: alasan || 'Status diperbarui'
+        }]);
+
+      if (historyError) throw historyError;
+
+      // update complaints.status (CURRENT STATUS)
       const updateData = {
         status,
         updated_at: new Date().toISOString()
       };
 
-      // Jika teknisi yang update, simpan teknisi_id
       if (userRole === 'teknisi') {
-        updateData.teknisi_id = req.user.id;
+        updateData.teknisi_id = userId;
       }
 
-      // Jika ada resolution notes
-      if (resolution_notes) {
-        updateData.resolution_notes = resolution_notes;
-      }
-
-      // Update complaint
       const complaint = await Complaint.update(id, updateData);
 
       if (!complaint) {
@@ -145,14 +157,57 @@ class ComplaintController {
         );
       }
 
+      // 3. GET FULL STATUS HISTORY untuk response
+      const statusHistory = await Complaint.getStatusHistory(id);
+
       res.json(
-        successResponse(complaint, 'Status komplain berhasil diupdate')
+        successResponse({
+          complaint,
+          status_history: statusHistory
+        }, 'Status komplain berhasil diupdate')
       );
 
     } catch (error) {
       console.error('Update status error:', error);
       res.status(500).json(
         errorResponse('Gagal mengupdate status komplain', 500)
+      );
+    }
+  }
+
+  static async getStatusHistory(req, res) {
+    try {
+      const { id } = req.params;
+      const userId = req.user.id;
+      const userRole = req.user.role;
+
+      // Cek apakah complaint exists
+      const complaint = await Complaint.findById(id);
+      if (!complaint) {
+        return res.status(404).json(
+          errorResponse('Komplain tidak ditemukan', 404)
+        );
+      }
+
+      // Cek akses: user hanya bisa lihat komplainnya sendiri
+      // Kecuali admin/teknisi bisa lihat semua
+      if (complaint.user_id !== userId && !['admin', 'teknisi'].includes(userRole)) {
+        return res.status(403).json(
+          errorResponse('Anda tidak memiliki akses ke komplain ini', 403)
+        );
+      }
+
+      // Get status history dari model
+      const statusHistory = await Complaint.getStatusHistory(id);
+
+      res.json(
+        successResponse(statusHistory, 'Riwayat status berhasil diambil')
+      );
+
+    } catch (error) {
+      console.error('Get status history error:', error);
+      res.status(500).json(
+        errorResponse('Gagal mengambil riwayat status', 500)
       );
     }
   }

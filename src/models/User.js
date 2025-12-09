@@ -11,7 +11,6 @@ const User = {
     return error ? null : data;
   },
 
-  // ✅ FIX: ganti 'identifier' jadi 'query'
   async findByUsernameOrEmail(query) {
     const { data, error } = await supabase
       .from('users')
@@ -22,25 +21,25 @@ const User = {
     return error ? null : data;
   },
 
-  // ✅ FIX: tambah .select() untuk return data
+  //  tambah .select() untuk return data
   async create(userData) {
     const { data, error } = await supabase
       .from('users')
       .insert([userData])
-      .select()  // ← TAMBAH INI
+      .select() 
       .single();
 
     if (error) throw error;
     return data;      
   },
 
-  // ✅ FIX: tambah .select()
+  //  tambah .select()
   async update(id, updates) {
     const { data, error } = await supabase
       .from('users')
       .update(updates)
       .eq('id', id)
-      .select()  // ← TAMBAH INI
+      .select()  
       .single();
 
     if (error) throw error;

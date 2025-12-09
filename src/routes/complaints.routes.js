@@ -1,3 +1,4 @@
+// routes/complaints.routes.js
 const express = require('express');
 const router = express.Router();
 const ComplaintController = require('../controllers/ComplaintController');
@@ -10,6 +11,7 @@ router.use(authMiddleware);
 router.post('/', ComplaintController.create);
 router.get('/', ComplaintController.getHistory);
 router.get('/:id', ComplaintController.getDetail);
+router.get('/:id/history', ComplaintController.getStatusHistory);
 
 // Hanya teknisi/admin yang bisa update status
 router.patch('/:id/status', authorize('teknisi', 'admin'), ComplaintController.updateStatus);

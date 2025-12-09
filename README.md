@@ -76,51 +76,7 @@ SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_KEY=your-anon-key
 ```
 
-### 4. Database Setup
-1. Buka [Supabase](https://supabase.com)
-2. Buat project baru
-3. Run SQL berikut di SQL Editor:
-
-```sql
--- Create users table
-CREATE TABLE users (
-    id VARCHAR(50) PRIMARY KEY DEFAULT 'user_' || substr(md5(random()::text), 0, 10),
-    username VARCHAR(50) UNIQUE NOT NULL,
-    email VARCHAR(100) UNIQUE NOT NULL,
-    password_hash VARCHAR(255) NOT NULL,
-    full_name VARCHAR(100) NOT NULL,
-    phone VARCHAR(20),
-    role VARCHAR(20) NOT NULL DEFAULT 'customer',
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW())
-);
-
--- Create complaints table
-CREATE TABLE complaints (
-    id VARCHAR(50) PRIMARY KEY DEFAULT 'comp_' || substr(md5(random()::text), 0, 10),
-    user_id VARCHAR(50) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    title VARCHAR(200) NOT NULL,
-    category VARCHAR(50) NOT NULL,
-    description TEXT,
-    status VARCHAR(20) NOT NULL DEFAULT 'pending',
-    teknisi_id VARCHAR(50) REFERENCES users(id),
-    resolution_notes TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW())
-);
-
--- Disable RLS for development
-ALTER TABLE users DISABLE ROW LEVEL SECURITY;
-ALTER TABLE complaints DISABLE ROW LEVEL SECURITY;
-
--- Insert default users (password: "123")
-INSERT INTO users (id, username, email, password_hash, full_name, role) VALUES
-('user_customer_1', 'customer', 'customer@example.com', 'a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3', 'John Customer', 'customer'),
-('user_teknisi_1', 'teknisi', 'teknisi@example.com', 'a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3', 'Budi Teknisi', 'teknisi'),
-('user_admin_1', 'admin', 'admin@example.com', 'a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3', 'Admin System', 'admin');
-```
-
-### 5. Run Server
+### 4. Run Server
 ```bash
 # Development mode
 npm run dev
