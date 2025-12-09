@@ -68,13 +68,13 @@ class ComplaintController {
     }
   }
 
-    static async getDetail(req, res) {
+  static async getDetail(req, res) {
     try {
       const { id } = req.params;
       const userId = req.user.id;
 
       const complaint = await Complaint.findById(id);
-      
+
       if (!complaint) {
         return res.status(404).json(
           errorResponse('Komplain tidak ditemukan', 404)

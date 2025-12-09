@@ -1,6 +1,6 @@
 const User = require('../models/User');
-const bcrypt = require('bcryptjs');  
-const tokenStore = require('../utils/tokenStore');
+const bcrypt = require('bcryptjs');
+const { generateToken } = require('../utils/jwt'); // ✅ Ganti tokenStore
 const { successResponse, errorResponse } = require('../utils/response');
 
 class AuthController {
@@ -8,14 +8,12 @@ class AuthController {
     try {
       const { username, password } = req.body;
 
-      // Validasi input
       if (!username || !password) {
         return res.status(400).json(
           errorResponse('Username dan password harus diisi', 400)
         );
       }
 
-      // Cari user
       const user = await User.findByUsernameOrEmail(username);
       
       if (!user) {
@@ -24,7 +22,6 @@ class AuthController {
         );
       }
 
-      // BCRYPT COMPARE (8 rounds - secure & fast enough)
       const validPassword = await bcrypt.compare(password, user.password_hash);
       
       if (!validPassword) {
@@ -33,17 +30,8 @@ class AuthController {
         );
       }
 
-      // Generate token
-      const randomStr = Math.random().toString(36).substring(2, 10);
-      const token = `${user.id}_${randomStr}`;
-      
-      // Simpan token
-      tokenStore.set(token, {
-        userId: user.id,
-        username: user.username,
-        role: user.role,
-        email: user.email
-      });
+      // ✅ GENERATE JWT TOKEN
+      const token = generateToken(user);
 
       // Hapus password dari response
       const { password_hash, ...userData } = user;
@@ -68,12 +56,8 @@ class AuthController {
 
   static async logout(req, res) {
     try {
-      const token = req.headers.authorization?.replace('Bearer ', '');
-      
-      if (token) {
-        tokenStore.delete(token);
-      }
-      
+      // ✅ Dengan JWT, logout cukup di client side
+      // (hapus token dari localStorage di frontend)
       res.json(
         successResponse(null, 'Logout berhasil')
       );
@@ -88,12 +72,20 @@ class AuthController {
 
   static async register(req, res) {
     try {
-      const { username, email, password, full_name, phone } = req.body;
+      const { username, email, password, full_name, phone, role = 'customer' } = req.body;
 
       // Validasi
       if (!username || !email || !password || !full_name) {
         return res.status(400).json(
           errorResponse('Semua field wajib diisi', 400)
+        );
+      }
+
+      // Validasi role
+      const validRoles = ['customer', 'teknisi', 'admin'];
+      if (!validRoles.includes(role)) {
+        return res.status(400).json(
+          errorResponse(`Role tidak valid. Pilihan: ${validRoles.join(', ')}`, 400)
         );
       }
 
@@ -107,31 +99,22 @@ class AuthController {
         );
       }
 
-      //  BCRYPT HASH dengan 8 rounds 
+      // Hash password
       const salt = await bcrypt.genSalt(8);
       const passwordHash = await bcrypt.hash(password, salt);
 
-      // Buat user baru
+      // Buat user baru (biar database generate ID)
       const newUser = await User.create({
-        id: `user_${Date.now()}`,
         username,
         email,
         password_hash: passwordHash,
         full_name,
         phone: phone || null,
-        role: 'customer'
+        role
       });
 
-      // Generate token
-      const token = `${newUser.id}_${Date.now()}`;
-      
-      // Simpan token
-      tokenStore.set(token, {
-        userId: newUser.id,
-        username: newUser.username,
-        role: newUser.role,
-        email: newUser.email
-      });
+      // ✅ GENERATE JWT TOKEN
+      const token = generateToken(newUser);
 
       // Hapus password dari response
       const { password_hash, ...userData } = newUser;

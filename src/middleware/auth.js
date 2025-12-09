@@ -1,63 +1,57 @@
-const { errorResponse } = require('../utils/response'); // ← IMPORT INI
-const tokenStore = require('../utils/tokenStore');
+// src/middleware/auth.js
+const { verifyToken } = require('../utils/jwt');
+const { errorResponse } = require('../utils/response'); // ✅ TAMBAH INI!
 
 const authMiddleware = (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
     
-    if (!authHeader) {
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return res.status(401).json(
-        errorResponse('Token tidak ditemukan. Silakan login.', 401)
+        errorResponse('Token tidak ditemukan', 401)
       );
     }
 
-    const token = authHeader.startsWith('Bearer ') 
-      ? authHeader.slice(7) 
-      : authHeader;
-
+    const token = authHeader.split(' ')[1];
     if (!token) {
       return res.status(401).json(
-        errorResponse('Format token tidak valid', 401)
+        errorResponse('Token tidak ditemukan', 401)
       );
     }
 
-    const session = tokenStore.get(token);
+    // ✅ VERIFY JWT TOKEN
+    const decoded = verifyToken(token);
     
-    if (!session) {
+    if (!decoded) {
       return res.status(401).json(
         errorResponse('Token tidak valid atau sudah expired', 401)
       );
     }
 
-    req.user = {
-      id: session.userId,
-      username: session.username,
-      role: session.role
-    };
-    
-    req.token = token;
-
+    // Attach user info to request
+    req.user = decoded;
     next();
 
   } catch (error) {
     console.error('Auth middleware error:', error);
-    return res.status(500).json(
-      errorResponse('Terjadi kesalahan autentikasi', 500)
+    return res.status(401).json(
+      errorResponse('Token tidak valid', 401)
     );
   }
 };
 
+// Middleware untuk authorize role
 const authorize = (...allowedRoles) => {
   return (req, res, next) => {
     if (!req.user) {
       return res.status(401).json(
-        errorResponse('User tidak terautentikasi', 401)
+        errorResponse('Tidak terautentikasi', 401)
       );
     }
 
     if (!allowedRoles.includes(req.user.role)) {
       return res.status(403).json(
-        errorResponse(`Akses ditolak. Role yang diizinkan: ${allowedRoles.join(', ')}`, 403)
+        errorResponse('Anda tidak memiliki akses untuk tindakan ini', 403)
       );
     }
 
@@ -65,4 +59,7 @@ const authorize = (...allowedRoles) => {
   };
 };
 
-module.exports = { authMiddleware, authorize };
+module.exports = {
+  authMiddleware,
+  authorize
+};
