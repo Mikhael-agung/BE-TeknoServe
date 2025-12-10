@@ -5,9 +5,9 @@ class ComplaintController {
   static async create(req, res) {
     try {
       const userId = req.user.id;
-      const { title, category, description } = req.body;
+      const { judul, kategori, deskripsi } = req.body;
 
-      if (!title || !category) {
+      if (!judul || !kategori) {
         return res.status(400).json(
           errorResponse('Judul dan kategori wajib diisi', 400)
         );
@@ -16,9 +16,9 @@ class ComplaintController {
       const complaintData = {
         id: `complaint_${Date.now()}`,
         user_id: userId,
-        title,
-        category,
-        description: description || '',
+        judul,
+        kategori,
+        deskripsi: deskripsi || '',
         status: 'pending'
       };
 
@@ -45,6 +45,7 @@ class ComplaintController {
       if (status) filters.status = status;
       if (page) filters.page = parseInt(page);
       if (limit) filters.limit = parseInt(limit);
+      if (req.query.kategori) filters.kategori = req.query.kategori;
 
       const { data: complaints, total } = await Complaint.findByUserId(userId, filters);
 
