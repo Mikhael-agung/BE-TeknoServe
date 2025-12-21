@@ -1,147 +1,274 @@
 const supabase = require('../config/supabase');
 
 const Complaint = {
-  // Buat complaint baru (FIXED: gak perlu kasih id manual)
   async create(complaintData) {
     try {
-      // HAPUS id jika ada (biar database generate)
-      const { id, ...cleanData } = complaintData;
+      console.log('\n=== 💾 MODEL CREATE START ===');
+      console.log('📥 Input data from controller:', complaintData);
 
+      const { 
+        id,          
+        created_at,  
+        updated_at,  
+        ...restData  // ✅ sisa data yang valid
+      } = complaintData;
+
+      console.log('🔍 After removing invalid fields:', restData);
+
+      const dbData = {
+        // Required fields (harus sesuai DB column names)
+        user_id: restData.user_id || '',
+        judul: restData.judul || '',
+        kategori: restData.kategori || '',
+        deskripsi: restData.deskripsi || '',
+        
+        alamat: restData.alamat || '',
+        kota: restData.kota || '',
+        kecamatan: restData.kecamatan || '',
+        telepon_alamat: restData.telepon_alamat || '',
+        catatan_alamat: restData.catatan_alamat || '',
+        
+        status: 'complaint',
+        tanggal: new Date().toISOString(),      
+        updated_at: new Date().toISOString()    
+      };
+
+      // console.log('Final DB data to insert:');
+      // console.log(JSON.stringify(dbData, null, 2));
+      
+      // VERIFIKASI: Pastikan tidak ada field 'created_at'
+      // console.log('Field verification:');
+      // console.log('- created_at exists?', 'created_at' in dbData ? 'BAD' : 'GOOD');
+      // console.log('- tanggal exists?', 'tanggal' in dbData ? ' GOOD' : 'BAD');
+      // console.log('- alamat exists?', 'alamat' in dbData ? 'GOOD' : 'BAD');
+
+      // console.log('🚀 Inserting to Supabase...');
       const { data, error } = await supabase
         .from('complaints')
-        .insert([cleanData])
+        .insert([dbData])
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('❌ SUPABASE INSERT ERROR:');
+        console.error('Code:', error.code);
+        console.error('Message:', error.message);
+        console.error('Details:', error.details);
+        throw error;
+      }
 
-      // ✅ AUTO INSERT STATUS PERTAMA KE complaint_statuses
+      // console.log('Complaint created in DB, ID:', data.id);
+
+      // TAMBAH STATUS AWAL KE HISTORY
+      // console.log('Adding status history...');
       await supabase
         .from('complaint_statuses')
         .insert([{
           complaint_id: data.id,
-          status: 'pending',
+          status: 'complaint',
           teknisi_id: null,
           alasan: 'Komplain dibuat'
         }]);
 
+      // console.log('Status history added');
+      // console.log('=== MODEL CREATE END ===\n');
+      
       return data;
     } catch (error) {
-      console.error('Complaint.create error:', error);
+      console.error('❌ COMPLAINT.CREATE ERROR:', error.message);
+      console.error('Full error:', JSON.stringify(error, null, 2));
       throw error;
     }
   },
 
-  // Get complaints by user ID (HISTORY) - MASIH SAMA
+  // Get complaints by user ID with filters and pagination
   async findByUserId(userId, filters = {}) {
-    let query = supabase
-      .from('complaints')
-      .select('*', { count: 'exact' })
-      .eq('user_id', userId)
-      .order('tanggal', { ascending: false });
+    try {
+      // console.log(`🔍 [MODEL] Find complaints for user: ${userId}, filters:`, filters);
+      
+      let query = supabase
+        .from('complaints')
+        .select('*', { count: 'exact' })
+        .eq('user_id', userId)
+        .order('tanggal', { ascending: false });
 
-    // Filter by status
-    if (filters.status) {
-      query = query.eq('status', filters.status);
+      // Filter by status
+      if (filters.status) {
+        query = query.eq('status', filters.status);
+      }
+
+      // Filter by category
+      if (filters.kategori) {
+        query = query.eq('kategori', filters.kategori);
+      }
+
+      // Pagination
+      if (filters.page && filters.limit) {
+        const from = (filters.page - 1) * filters.limit;
+        const to = from + filters.limit - 1;
+        query = query.range(from, to);
+      }
+
+      const { data, error, count } = await query;
+
+      if (error) {
+        console.error('❌ FindByUserId error:', error);
+        return { data: [], total: 0 };
+      }
+      
+      // console.log(`Found ${data?.length || 0} complaints for user ${userId}`);
+      return { data: data || [], total: count || 0 };
+    } catch (error) {
+      console.error('❌ FindByUserId exception:', error);
+      return { data: [], total: 0 };
     }
-
-    // Filter by category
-    if (filters.kategori) {
-      query = query.eq('kategori', filters.kategori);
-    }
-
-    // Pagination
-    if (filters.page && filters.limit) {
-      const from = (filters.page - 1) * filters.limit;
-      const to = from + filters.limit - 1;
-      query = query.range(from, to);
-    }
-
-    const { data, error, count } = await query;
-
-    if (error) return { data: [], total: 0 };
-    return { data: data || [], total: count || 0 };
   },
 
-  // Get complaint by ID - TAMBAH STATUS HISTORY
+  // Get complaint by ID with user and teknisi info
   async findById(id) {
-    const { data, error } = await supabase
-      .from('complaints')
-      .select(`
-        *,
-        user:users(id, username, full_name),
-        teknisi:teknisi_id(id, username, full_name)
-      `)
-      .eq('id', id)
-      .single();
+    try {
+      // console.log(`🔍 [MODEL] Find complaint by ID: ${id}`);
+      
+      const { data, error } = await supabase
+        .from('complaints')
+        .select(`
+          *,
+          user:users(id, username, full_name),
+          teknisi:teknisi_id(id, username, full_name)
+        `)
+        .eq('id', id)
+        .single();
 
-    return error ? null : data;
+      if (error) {
+        console.error('❌ FindById error:', error.message);
+        return null;
+      }
+      
+      // console.log(`✅ Found complaint: ${data?.judul || 'N/A'}`);
+      return data;
+    } catch (error) {
+      console.error('❌ FindById exception:', error);
+      return null;
+    }
   },
 
-  // Update complaint - MASIH SAMA
+  // Update complaint
   async update(id, updates) {
-    const { data, error } = await supabase
-      .from('complaints')
-      .update({
-        ...updates,
+    try {
+      console.log(`✏️ [MODEL] Updating complaint ${id}:`, updates);
+      
+      // Remove fields that should not be updated
+      const { created_at, tanggal, ...cleanUpdates } = updates;
+      
+      const updateData = {
+        ...cleanUpdates,
         updated_at: new Date().toISOString()
-      })
-      .eq('id', id)
-      .select()
-      .single();
+      };
 
-    if (error) throw error;
-    return data;
+      // console.log('📝 Update data:', updateData);
+
+      const { data, error } = await supabase
+        .from('complaints')
+        .update(updateData)
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('❌ Update error:', error);
+        throw error;
+      }
+      
+      // console.log('✅ Complaint updated successfully');
+      return data;
+    } catch (error) {
+      console.error('❌ Update exception:', error);
+      throw error;
+    }
   },
-
-  // Get status history
+  
+  // Get status history for a complaint
   async getStatusHistory(complaintId) {
-    const { data, error } = await supabase
-      .from('complaint_statuses')
-      .select(`
-        *,
-        teknisi:teknisi_id(id, username, full_name)
-      `)
-      .eq('complaint_id', complaintId)
-      .order('created_at', { ascending: false });
+    try {
+      // console.log(`📜 [MODEL] Get status history for complaint: ${complaintId}`);
+      
+      const { data, error } = await supabase
+        .from('complaint_statuses')
+        .select(`
+          *,
+          teknisi:teknisi_id(id, username, full_name)
+        `)
+        .eq('complaint_id', complaintId)
+        .order('created_at', { ascending: false });
 
-    return error ? [] : data;
+      if (error) {
+        console.error('❌ GetStatusHistory error:', error);
+        return [];
+      }
+      
+      // console.log(`✅ Found ${data?.length || 0} status history records`);
+      return data || [];
+    } catch (error) {
+      console.error('❌ GetStatusHistory exception:', error);
+      return [];
+    }
   },
 
-  // Add status ke history
+  // Add status to history
   async addStatusHistory(statusData) {
-    const { data, error } = await supabase
-      .from('complaint_statuses')
-      .insert([statusData])
-      .select()
-      .single();
+    try {
+      // console.log('➕ [MODEL] Adding status history:', statusData);
+      
+      const { data, error } = await supabase
+        .from('complaint_statuses')
+        .insert([statusData])
+        .select()
+        .single();
 
-    if (error) throw error;
-    return data;
+      if (error) throw error;
+      
+      console.log('✅ Status history added');
+      return data;
+    } catch (error) {
+      console.error('❌ AddStatusHistory error:', error);
+      throw error;
+    }
   },
 
-  // Get complaints by teknisi
+  // Get complaints by teknisi ID
   async findByTeknisiId(teknisiId, filters = {}) {
-    let query = supabase
-      .from('complaints')
-      .select('*', { count: 'exact' })
-      .eq('teknisi_id', teknisiId)
-      .order('created_at', { ascending: false });
+    try {
+      // console.log(`🔍 [MODEL] Find complaints for teknisi: ${teknisiId}`);
+      
+      let query = supabase
+        .from('complaints')
+        .select('*', { count: 'exact' })
+        .eq('teknisi_id', teknisiId)
+        .order('tanggal', { ascending: false });
 
-    if (filters.status) {
-      query = query.eq('status', filters.status);
+      if (filters.status) {
+        query = query.eq('status', filters.status);
+      }
+
+      if (filters.page && filters.limit) {
+        const from = (filters.page - 1) * filters.limit;
+        const to = from + filters.limit - 1;
+        query = query.range(from, to);
+      }
+
+      const { data, error, count } = await query;
+
+      if (error) {
+        console.error('❌ FindByTeknisiId error:', error);
+        return { data: [], total: 0 };
+      }
+      
+      // console.log(`✅ Found ${data?.length || 0} complaints for teknisi ${teknisiId}`);
+      return { data: data || [], total: count || 0 };
+    } catch (error) {
+      console.error('❌ FindByTeknisiId exception:', error);
+      return { data: [], total: 0 };
     }
-
-    if (filters.page && filters.limit) {
-      const from = (filters.page - 1) * filters.limit;
-      const to = from + filters.limit - 1;
-      query = query.range(from, to);
-    }
-
-    const { data, error, count } = await query;
-
-    if (error) return { data: [], total: 0 };
-    return { data: data || [], total: count || 0 };
   }
 };
 

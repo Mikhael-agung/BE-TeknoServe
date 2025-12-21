@@ -1,38 +1,79 @@
 const Complaint = require('../models/Complaint');
 const { successResponse, errorResponse } = require('../utils/response');
+const supabase = require('../config/supabase');
 
 class ComplaintController {
   static async create(req, res) {
     try {
-      const userId = req.user.id;
-      const { judul, kategori, deskripsi } = req.body;
+      console.log('\n=== 📝 CREATE COMPLAINT START ===');
+      console.log('👤 User:', req.user.username, 'ID:', req.user.id);
+      console.log('📦 Request Body:', JSON.stringify(req.body, null, 2));
 
+      const userId = req.user.id;
+      const {
+        judul,
+        kategori,
+        deskripsi,
+        alamat,
+        kota,
+        kecamatan,
+        telepon_alamat,
+        catatan_alamat
+      } = req.body;
+
+      // Validasi
       if (!judul || !kategori) {
+        console.log('❌ Validation failed: judul or kategori missing');
         return res.status(400).json(
           errorResponse('Judul dan kategori wajib diisi', 400)
         );
       }
 
+      if (!alamat || alamat.trim() === '') {
+        console.log('❌ Validation failed: alamat missing or empty');
+        return res.status(400).json(
+          errorResponse('Alamat wajib diisi', 400)
+        );
+      }
+
+      // ✅ FIXED: JANGAN BUAT ID MANUAL - biar database generate
       const complaintData = {
-        id: `complaint_${Date.now()}`,
         user_id: userId,
-        judul,
-        kategori,
-        deskripsi: deskripsi || '',
-        status: 'pending'
+        judul: judul.trim(),
+        kategori: kategori.trim(),
+        deskripsi: (deskripsi || '').trim(),
+        alamat: alamat.trim(),
+        kota: (kota || '').trim(),
+        kecamatan: (kecamatan || '').trim(),
+        telepon_alamat: (telepon_alamat || '').trim(),
+        catatan_alamat: (catatan_alamat || '').trim(),
+        // Status akan di-set oleh model
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
       };
+
+      console.log('💾 Complaint data to save:', complaintData);
 
       const complaint = await Complaint.create(complaintData);
 
-      res.status(201).json(
-        successResponse(complaint, 'Komplain berhasil dibuat')
-      );
+      console.log('✅ Complaint created successfully');
+      console.log('✅ Complaint ID:', complaint.id);
+      console.log('=== 📝 CREATE COMPLAINT END ===\n');
+
+      res.status(201).json({
+        success: true,
+        message: 'Komplain berhasil dibuat',
+        data: complaint,
+        timestamp: new Date().toISOString()
+      });
 
     } catch (error) {
-      console.error('Create complaint error:', error);
-      res.status(500).json(
-        errorResponse('Gagal membuat komplain', 500)
-      );
+      console.error('❌ CREATE COMPLAINT ERROR:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Gagal membuat komplain: ' + error.message,
+        timestamp: new Date().toISOString()
+      });
     }
   }
 
@@ -89,7 +130,7 @@ class ComplaintController {
         );
       }
 
-      // GET STATUS HISTORY
+      // get status history
       const statusHistory = await Complaint.getStatusHistory(id);
 
       res.json(
@@ -121,7 +162,7 @@ class ComplaintController {
         );
       }
 
-      const validStatuses = ['pending', 'diproses', 'selesai', 'ditolak'];
+        const validStatuses = ['complaint', 'on_progress', 'pending', 'completed'];
       if (!status || !validStatuses.includes(status)) {
         return res.status(400).json(
           errorResponse(`Status tidak valid. Pilihan: ${validStatuses.join(', ')}`, 400)
@@ -140,7 +181,7 @@ class ComplaintController {
 
       if (historyError) throw historyError;
 
-      // update complaints.status (CURRENT STATUS)
+      // update complaints.status 
       const updateData = {
         status,
         updated_at: new Date().toISOString()
@@ -191,7 +232,6 @@ class ComplaintController {
       }
 
       // Cek akses: user hanya bisa lihat komplainnya sendiri
-      // Kecuali admin/teknisi bisa lihat semua
       if (complaint.user_id !== userId && !['admin', 'teknisi'].includes(userRole)) {
         return res.status(403).json(
           errorResponse('Anda tidak memiliki akses ke komplain ini', 403)

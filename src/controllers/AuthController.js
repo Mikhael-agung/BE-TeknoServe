@@ -1,6 +1,6 @@
 const User = require('../models/User');
 const bcrypt = require('bcryptjs');
-const { generateToken } = require('../utils/jwt'); // ✅ Ganti tokenStore
+const { generateToken } = require('../utils/jwt');
 const { successResponse, errorResponse } = require('../utils/response');
 
 class AuthController {
@@ -15,7 +15,7 @@ class AuthController {
       }
 
       const user = await User.findByUsernameOrEmail(username);
-      
+
       if (!user) {
         return res.status(401).json(
           errorResponse('Username atau password salah', 401)
@@ -23,23 +23,22 @@ class AuthController {
       }
 
       const validPassword = await bcrypt.compare(password, user.password_hash);
-      
+
       if (!validPassword) {
         return res.status(401).json(
           errorResponse('Username atau password salah', 401)
         );
       }
 
-      // ✅ GENERATE JWT TOKEN
       const token = generateToken(user);
 
       // Hapus password dari response
       const { password_hash, ...userData } = user;
-      
+
       res.json(
         successResponse(
           {
-            token, 
+            token,
             user: userData
           },
           'Login berhasil'
@@ -56,12 +55,10 @@ class AuthController {
 
   static async logout(req, res) {
     try {
-      // ✅ Dengan JWT, logout cukup di client side
-      // (hapus token dari localStorage di frontend)
       res.json(
         successResponse(null, 'Logout berhasil')
       );
-      
+
     } catch (error) {
       console.error('Logout error:', error);
       res.status(500).json(
@@ -90,9 +87,9 @@ class AuthController {
       }
 
       // Cek user sudah ada
-      const existingUser = await User.findByUsernameOrEmail(username) || 
-                          await User.findByUsernameOrEmail(email);
-      
+      const existingUser = await User.findByUsernameOrEmail(username) ||
+        await User.findByUsernameOrEmail(email);
+
       if (existingUser) {
         return res.status(400).json(
           errorResponse('Username atau email sudah terdaftar', 400)
@@ -113,7 +110,6 @@ class AuthController {
         role
       });
 
-      // ✅ GENERATE JWT TOKEN
       const token = generateToken(newUser);
 
       // Hapus password dari response
