@@ -3,20 +3,17 @@ const supabase = require('../config/supabase');
 const Complaint = {
   async create(complaintData) {
     try {
-      console.log('\n=== 💾 MODEL CREATE START ===');
-      console.log('📥 Input data from controller:', complaintData);
-
       const {
         id,
         created_at,
         updated_at,
-        ...restData  // ✅ sisa data yang valid
+        ...restData
       } = complaintData;
 
       console.log('🔍 After removing invalid fields:', restData);
 
       const dbData = {
-        // Required fields (harus sesuai DB column names)
+        // Required fields
         user_id: restData.user_id || '',
         judul: restData.judul || '',
         kategori: restData.kategori || '',
@@ -33,16 +30,7 @@ const Complaint = {
         updated_at: new Date().toISOString()
       };
 
-      // console.log('Final DB data to insert:');
-      // console.log(JSON.stringify(dbData, null, 2));
-
-      // VERIFIKASI: Pastikan tidak ada field 'created_at'
-      // console.log('Field verification:');
-      // console.log('- created_at exists?', 'created_at' in dbData ? 'BAD' : 'GOOD');
-      // console.log('- tanggal exists?', 'tanggal' in dbData ? ' GOOD' : 'BAD');
-      // console.log('- alamat exists?', 'alamat' in dbData ? 'GOOD' : 'BAD');
-
-      // console.log('🚀 Inserting to Supabase...');
+      // Insert to Supabase
       const { data, error } = await supabase
         .from('complaints')
         .insert([dbData])
@@ -50,17 +38,12 @@ const Complaint = {
         .single();
 
       if (error) {
-        console.error('❌ SUPABASE INSERT ERROR:');
-        console.error('Code:', error.code);
-        console.error('Message:', error.message);
+        console.error('❌ SUPABASE INSERT ERROR:', error.message);
         console.error('Details:', error.details);
         throw error;
       }
 
-      // console.log('Complaint created in DB, ID:', data.id);
-
-      // TAMBAH STATUS AWAL KE HISTORY
-      // console.log('Adding status history...');
+      // Add initial status history
       await supabase
         .from('complaint_statuses')
         .insert([{
@@ -70,25 +53,19 @@ const Complaint = {
           alasan: 'Komplain dibuat'
         }]);
 
-      // console.log('Status history added');
-      // console.log('=== MODEL CREATE END ===\n');
-
       return data;
     } catch (error) {
       console.error('❌ COMPLAINT.CREATE ERROR:', error.message);
-      console.error('Full error:', JSON.stringify(error, null, 2));
       throw error;
     }
   },
 
-  // Get complaints by user ID with filters and pagination
+  // Get complaints by user ID with filters and pagination - OPTIMIZED
   async findByUserId(userId, filters = {}) {
     try {
-      // console.log(`🔍 [MODEL] Find complaints for user: ${userId}, filters:`, filters);
-
       let query = supabase
         .from('complaints')
-        .select('*', { count: 'exact' })
+        .select('id, judul, kategori, status, tanggal, kota, kecamatan', { count: 'estimated' }) // ✅ changed to estimated
         .eq('user_id', userId)
         .order('tanggal', { ascending: false });
 
@@ -112,11 +89,10 @@ const Complaint = {
       const { data, error, count } = await query;
 
       if (error) {
-        console.error('❌ FindByUserId error:', error);
+        console.error('❌ FindByUserId error:', error.message);
         return { data: [], total: 0 };
       }
 
-      // console.log(`Found ${data?.length || 0} complaints for user ${userId}`);
       return { data: data || [], total: count || 0 };
     } catch (error) {
       console.error('❌ FindByUserId exception:', error);
@@ -125,13 +101,9 @@ const Complaint = {
   },
 
   // Get complaint by ID with user and teknisi info
-  // models/Complaint.js - FIXED VERSION:
-
   async findById(id) {
     try {
-      console.log(`🔍 [MODEL] Find complaint by ID: ${id}`);
-
-      // QUERY WITHOUT EMBED - select minimal fields
+      // QUERY WITHOUT EMBED
       const { data: complaint, error } = await supabase
         .from('complaints')
         .select('*')
@@ -174,10 +146,9 @@ const Complaint = {
       // Return combined data
       return {
         ...complaint,
-        customer,  // data customer
-        teknisi    // data teknisi
+        customer,
+        teknisi
       };
-
     } catch (error) {
       console.error('❌ FindById exception:', error);
       return null;
@@ -187,8 +158,6 @@ const Complaint = {
   // Update complaint
   async update(id, updates) {
     try {
-      console.log(`✏️ [MODEL] Updating complaint ${id}:`, updates);
-
       // Remove fields that should not be updated
       const { created_at, tanggal, ...cleanUpdates } = updates;
 
@@ -196,8 +165,6 @@ const Complaint = {
         ...cleanUpdates,
         updated_at: new Date().toISOString()
       };
-
-      // console.log('📝 Update data:', updateData);
 
       const { data, error } = await supabase
         .from('complaints')
@@ -207,11 +174,10 @@ const Complaint = {
         .single();
 
       if (error) {
-        console.error('❌ Update error:', error);
+        console.error('❌ Update error:', error.message);
         throw error;
       }
 
-      // console.log('✅ Complaint updated successfully');
       return data;
     } catch (error) {
       console.error('❌ Update exception:', error);
@@ -219,12 +185,10 @@ const Complaint = {
     }
   },
 
-  // Get status history for a complaint
+  // Get status history for a complaint - OPTIMIZED (no N+1 queries)
   async getStatusHistory(complaintId) {
     try {
-      console.log(`📜 Get status history for: ${complaintId}`);
-
-      // Query tanpa embed
+      // Query without embed
       const { data: histories, error } = await supabase
         .from('complaint_statuses')
         .select('*')
@@ -232,33 +196,45 @@ const Complaint = {
         .order('created_at', { ascending: false });
 
       if (error) {
-        console.error('GetStatusHistory error:', error);
+        console.error('GetStatusHistory error:', error.message);
         return [];
       }
 
-      // Get teknisi info separately
-      const historiesWithTeknisi = await Promise.all(
-        (histories || []).map(async (history) => {
-          let teknisi = null;
+      if (!histories || histories.length === 0) {
+        return [];
+      }
 
-          if (history.teknisi_id) {
-            const { data: teknisiData } = await supabase
-              .from('users')
-              .select('id, username, full_name')
-              .eq('id', history.teknisi_id)
-              .single();
-            teknisi = teknisiData;
-          }
+      // ✅ OPTIMIZATION: Get all unique teknisi IDs in one query
+      const teknisiIds = [...new Set(
+        histories
+          .map(h => h.teknisi_id)
+          .filter(id => id !== null && id !== undefined)
+      )];
 
-          return {
-            ...history,
-            teknisi
-          };
-        })
-      );
+      let teknisiMap = {};
+
+      // Query users only once if there are teknisi IDs
+      if (teknisiIds.length > 0) {
+        const { data: teknisiData } = await supabase
+          .from('users')
+          .select('id, username, full_name')
+          .in('id', teknisiIds);
+
+        if (teknisiData) {
+          // Convert array to map for O(1) lookup
+          teknisiData.forEach(teknisi => {
+            teknisiMap[teknisi.id] = teknisi;
+          });
+        }
+      }
+
+      // Map histories with teknisi data
+      const historiesWithTeknisi = histories.map(history => ({
+        ...history,
+        teknisi: history.teknisi_id ? teknisiMap[history.teknisi_id] || null : null
+      }));
 
       return historiesWithTeknisi;
-
     } catch (error) {
       console.error('GetStatusHistory exception:', error);
       return [];
@@ -268,8 +244,6 @@ const Complaint = {
   // Add status to history
   async addStatusHistory(statusData) {
     try {
-      // console.log('➕ [MODEL] Adding status history:', statusData);
-
       const { data, error } = await supabase
         .from('complaint_statuses')
         .insert([statusData])
@@ -281,19 +255,17 @@ const Complaint = {
       console.log('✅ Status history added');
       return data;
     } catch (error) {
-      console.error('❌ AddStatusHistory error:', error);
+      console.error('❌ AddStatusHistory error:', error.message);
       throw error;
     }
   },
 
-  // Get complaints by teknisi ID
+  // Get complaints by teknisi ID - OPTIMIZED
   async findByTeknisiId(teknisiId, filters = {}) {
     try {
-      // console.log(`🔍 [MODEL] Find complaints for teknisi: ${teknisiId}`);
-
       let query = supabase
         .from('complaints')
-        .select('*', { count: 'exact' })
+        .select('id, judul, kategori, status, tanggal, kota, kecamatan', { count: 'estimated' })
         .eq('teknisi_id', teknisiId)
         .order('tanggal', { ascending: false });
 
@@ -310,11 +282,10 @@ const Complaint = {
       const { data, error, count } = await query;
 
       if (error) {
-        console.error('❌ FindByTeknisiId error:', error);
+        console.error('❌ FindByTeknisiId error:', error.message);
         return { data: [], total: 0 };
       }
 
-      // console.log(`✅ Found ${data?.length || 0} complaints for teknisi ${teknisiId}`);
       return { data: data || [], total: count || 0 };
     } catch (error) {
       console.error('❌ FindByTeknisiId exception:', error);
@@ -322,13 +293,14 @@ const Complaint = {
     }
   },
 
+  // Find complaints ready for teknisi - OPTIMIZED
   async findReadyForTeknisi(filters = {}) {
     try {
       let query = supabase
         .from('complaints')
-        .select('*', { count: 'exact' })
+        .select('id, judul, kategori, status, tanggal, kota, kecamatan', { count: 'estimated' })
         .eq('status', 'complaint')
-        .is('teknisi_id', null)  // Belum diambil teknisi
+        .is('teknisi_id', null)
         .order('tanggal', { ascending: false });
 
       if (filters.page && filters.limit) {
@@ -340,7 +312,7 @@ const Complaint = {
       const { data, error, count } = await query;
 
       if (error) {
-        console.error('FindReadyForTeknisi error:', error);
+        console.error('FindReadyForTeknisi error:', error.message);
         return { data: [], total: 0 };
       }
 
@@ -360,7 +332,7 @@ const Complaint = {
         .is('teknisi_id', null);
 
       if (error) {
-        console.error('CountReadyForTeknisi error:', error);
+        console.error('CountReadyForTeknisi error:', error.message);
         return 0;
       }
 
@@ -385,7 +357,7 @@ const Complaint = {
       const { count, error } = await query;
 
       if (error) {
-        console.error('CountByTeknisiId error:', error);
+        console.error('CountByTeknisiId error:', error.message);
         return 0;
       }
 
