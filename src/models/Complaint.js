@@ -6,10 +6,10 @@ const Complaint = {
       console.log('\n=== 💾 MODEL CREATE START ===');
       console.log('📥 Input data from controller:', complaintData);
 
-      const { 
-        id,          
-        created_at,  
-        updated_at,  
+      const {
+        id,
+        created_at,
+        updated_at,
         ...restData  // ✅ sisa data yang valid
       } = complaintData;
 
@@ -21,21 +21,21 @@ const Complaint = {
         judul: restData.judul || '',
         kategori: restData.kategori || '',
         deskripsi: restData.deskripsi || '',
-        
+
         alamat: restData.alamat || '',
         kota: restData.kota || '',
         kecamatan: restData.kecamatan || '',
         telepon_alamat: restData.telepon_alamat || '',
         catatan_alamat: restData.catatan_alamat || '',
-        
+
         status: 'complaint',
-        tanggal: new Date().toISOString(),      
-        updated_at: new Date().toISOString()    
+        tanggal: new Date().toISOString(),
+        updated_at: new Date().toISOString()
       };
 
       // console.log('Final DB data to insert:');
       // console.log(JSON.stringify(dbData, null, 2));
-      
+
       // VERIFIKASI: Pastikan tidak ada field 'created_at'
       // console.log('Field verification:');
       // console.log('- created_at exists?', 'created_at' in dbData ? 'BAD' : 'GOOD');
@@ -72,7 +72,7 @@ const Complaint = {
 
       // console.log('Status history added');
       // console.log('=== MODEL CREATE END ===\n');
-      
+
       return data;
     } catch (error) {
       console.error('❌ COMPLAINT.CREATE ERROR:', error.message);
@@ -85,7 +85,7 @@ const Complaint = {
   async findByUserId(userId, filters = {}) {
     try {
       // console.log(`🔍 [MODEL] Find complaints for user: ${userId}, filters:`, filters);
-      
+
       let query = supabase
         .from('complaints')
         .select('*', { count: 'exact' })
@@ -115,7 +115,7 @@ const Complaint = {
         console.error('❌ FindByUserId error:', error);
         return { data: [], total: 0 };
       }
-      
+
       // console.log(`Found ${data?.length || 0} complaints for user ${userId}`);
       return { data: data || [], total: count || 0 };
     } catch (error) {
@@ -128,7 +128,7 @@ const Complaint = {
   async findById(id) {
     try {
       // console.log(`🔍 [MODEL] Find complaint by ID: ${id}`);
-      
+
       const { data, error } = await supabase
         .from('complaints')
         .select(`
@@ -143,7 +143,7 @@ const Complaint = {
         console.error('❌ FindById error:', error.message);
         return null;
       }
-      
+
       // console.log(`✅ Found complaint: ${data?.judul || 'N/A'}`);
       return data;
     } catch (error) {
@@ -156,10 +156,10 @@ const Complaint = {
   async update(id, updates) {
     try {
       console.log(`✏️ [MODEL] Updating complaint ${id}:`, updates);
-      
+
       // Remove fields that should not be updated
       const { created_at, tanggal, ...cleanUpdates } = updates;
-      
+
       const updateData = {
         ...cleanUpdates,
         updated_at: new Date().toISOString()
@@ -178,7 +178,7 @@ const Complaint = {
         console.error('❌ Update error:', error);
         throw error;
       }
-      
+
       // console.log('✅ Complaint updated successfully');
       return data;
     } catch (error) {
@@ -186,12 +186,12 @@ const Complaint = {
       throw error;
     }
   },
-  
+
   // Get status history for a complaint
   async getStatusHistory(complaintId) {
     try {
       // console.log(`📜 [MODEL] Get status history for complaint: ${complaintId}`);
-      
+
       const { data, error } = await supabase
         .from('complaint_statuses')
         .select(`
@@ -205,7 +205,7 @@ const Complaint = {
         console.error('❌ GetStatusHistory error:', error);
         return [];
       }
-      
+
       // console.log(`✅ Found ${data?.length || 0} status history records`);
       return data || [];
     } catch (error) {
@@ -218,7 +218,7 @@ const Complaint = {
   async addStatusHistory(statusData) {
     try {
       // console.log('➕ [MODEL] Adding status history:', statusData);
-      
+
       const { data, error } = await supabase
         .from('complaint_statuses')
         .insert([statusData])
@@ -226,7 +226,7 @@ const Complaint = {
         .single();
 
       if (error) throw error;
-      
+
       console.log('✅ Status history added');
       return data;
     } catch (error) {
@@ -239,7 +239,7 @@ const Complaint = {
   async findByTeknisiId(teknisiId, filters = {}) {
     try {
       // console.log(`🔍 [MODEL] Find complaints for teknisi: ${teknisiId}`);
-      
+
       let query = supabase
         .from('complaints')
         .select('*', { count: 'exact' })
@@ -262,12 +262,86 @@ const Complaint = {
         console.error('❌ FindByTeknisiId error:', error);
         return { data: [], total: 0 };
       }
-      
+
       // console.log(`✅ Found ${data?.length || 0} complaints for teknisi ${teknisiId}`);
       return { data: data || [], total: count || 0 };
     } catch (error) {
       console.error('❌ FindByTeknisiId exception:', error);
       return { data: [], total: 0 };
+    }
+  },
+
+  async findReadyForTeknisi(filters = {}) {
+    try {
+      let query = supabase
+        .from('complaints')
+        .select('*', { count: 'exact' })
+        .eq('status', 'complaint')
+        .is('teknisi_id', null)  // Belum diambil teknisi
+        .order('tanggal', { ascending: false });
+
+      if (filters.page && filters.limit) {
+        const from = (filters.page - 1) * filters.limit;
+        const to = from + filters.limit - 1;
+        query = query.range(from, to);
+      }
+
+      const { data, error, count } = await query;
+
+      if (error) {
+        console.error('FindReadyForTeknisi error:', error);
+        return { data: [], total: 0 };
+      }
+
+      return { data: data || [], total: count || 0 };
+    } catch (error) {
+      console.error('FindReadyForTeknisi exception:', error);
+      return { data: [], total: 0 };
+    }
+  },
+
+  async countReadyForTeknisi() {
+    try {
+      const { count, error } = await supabase
+        .from('complaints')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'complaint')
+        .is('teknisi_id', null);
+
+      if (error) {
+        console.error('CountReadyForTeknisi error:', error);
+        return 0;
+      }
+
+      return count || 0;
+    } catch (error) {
+      console.error('CountReadyForTeknisi exception:', error);
+      return 0;
+    }
+  },
+
+  async countByTeknisiId(teknisiId, status = null) {
+    try {
+      let query = supabase
+        .from('complaints')
+        .select('*', { count: 'exact', head: true })
+        .eq('teknisi_id', teknisiId);
+
+      if (status) {
+        query = query.eq('status', status);
+      }
+
+      const { count, error } = await query;
+
+      if (error) {
+        console.error('CountByTeknisiId error:', error);
+        return 0;
+      }
+
+      return count || 0;
+    } catch (error) {
+      console.error('CountByTeknisiId exception:', error);
+      return 0;
     }
   }
 };
