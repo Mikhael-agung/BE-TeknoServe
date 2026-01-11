@@ -252,62 +252,6 @@ class ComplaintController {
       );
     }
   }
-
-  static async getUserComplaints(req, res) {
-    try {
-      console.log('\n=== 📋 GET USER COMPLAINTS START ===');
-      console.log('👤 User ID:', req.user.id);
-      console.log('👤 User Role:', req.user.role);
-
-      const userId = req.user.id;
-      const { page = 1, limit = 20, status } = req.query;
-
-      // Build filters
-      const filters = {
-        page: parseInt(page),
-        limit: parseInt(limit)
-      };
-
-      if (status) {
-        filters.status = status;
-      }
-
-      console.log('🔍 Filters:', filters);
-
-      // Get complaints for this user only
-      const { data: complaints, total } = await Complaint.findByUserId(userId, filters);
-
-      console.log('✅ Found', complaints?.length || 0, 'complaints for user', userId);
-
-      const response = {
-        success: true,
-        message: 'Komplain berhasil diambil',
-        data: {
-          complaints: complaints || [],
-          pagination: {
-            total: total || 0,
-            page: parseInt(page),
-            limit: parseInt(limit),
-            total_pages: Math.ceil((total || 0) / parseInt(limit))
-          }
-        },
-        timestamp: new Date().toISOString()
-      };
-
-      console.log('📤 Response ready');
-      console.log('=== 📋 GET USER COMPLAINTS END ===\n');
-
-      res.json(response);
-
-    } catch (error) {
-      console.error('❌ GET USER COMPLAINTS ERROR:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Gagal mengambil komplain: ' + error.message,
-        timestamp: new Date().toISOString()
-      });
-    }
-  }
 }
 
 module.exports = ComplaintController;
