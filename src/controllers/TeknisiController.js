@@ -78,14 +78,11 @@ class TeknisiController {
       const userId = req.user.id;
       const { page = 1, limit = 10 } = req.query;
 
-      const { data: complaints, total } = await Complaint.findByTeknisiId(
-        userId,
-        {
-          status: "on_progress",
+      const { data: complaints, total } =
+        await Complaint.findProgressByTeknisiId(userId, {
           page: parseInt(page),
           limit: parseInt(limit),
-        }
-      );
+        });
 
       res.json(
         successResponse(
@@ -115,14 +112,11 @@ class TeknisiController {
       const userId = req.user.id;
       const { page = 1, limit = 10 } = req.query;
 
-      const { data: complaints, total } = await Complaint.findByTeknisiId(
-        userId,
-        {
-          status: "completed",
+      const { data: complaints, total } =
+        await Complaint.findCompletedByTeknisiId(userId, {
           page: parseInt(page),
           limit: parseInt(limit),
-        }
-      );
+        });
 
       res.json(
         successResponse(

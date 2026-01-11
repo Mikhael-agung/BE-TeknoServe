@@ -105,7 +105,7 @@ const Complaint = {
         .from("complaints")
         .select("*")
         .eq("id", id)
-        .Single();
+        .single();
 
       if (error) {
         console.error("❌ FindById error:", error.message);
@@ -261,52 +261,57 @@ const Complaint = {
     }
   },
 
-  // Get complaints by teknisi ID - FIXED
-  async findByTeknisiId(teknisiId, filters = {}) {
+  async findProgressByTeknisiId(teknisiId, { page = 1, limit = 10 }) {
     try {
       let query = supabase
         .from("complaints")
         .select(
-          `
-        id,
-        judul,
-        kategori,
-        status,
-        tanggal,
-        kota,
-        alamat,
-        deskripsi,
-        user:user_id (
-          id,
-          full_name,
-          phone
-        )
-      `,
+          ` id, judul, kategori, status, tanggal, kota, alamat, deskripsi, user:user_id ( id, full_name, phone ) `,
           { count: "estimated" }
         )
         .eq("teknisi_id", teknisiId)
         .in("status", ["on_progress", "pending"])
         .order("tanggal", { ascending: false });
-
-      if (filters.page && filters.limit) {
-        const from = (filters.page - 1) * filters.limit;
-        const to = from + filters.limit - 1;
-        query = query.range(from, to);
-      }
-
+      const from = (page - 1) * limit;
+      const to = from + limit - 1;
+      query = query.range(from, to);
       const { data, error, count } = await query;
-
       if (error) {
-        console.error("❌ findByTeknisiId error:", error.message);
+        console.error("❌ findProgressByTeknisiId error:", error.message);
         return { data: [], total: 0 };
       }
-
       return { data: data || [], total: count || 0 };
     } catch (error) {
-      console.error("❌ findByTeknisiId exception:", error);
+      console.error("❌ findProgressByTeknisiId exception:", error);
       return { data: [], total: 0 };
     }
   },
+  async findCompletedByTeknisiId(teknisiId, { page = 1, limit = 10 }) {
+    try {
+      let query = supabase
+        .from("complaints")
+        .select(
+          ` id, judul, kategori, status, tanggal, kota, alamat, deskripsi, user:user_id ( id, full_name, phone ) `,
+          { count: "estimated" }
+        )
+        .eq("teknisi_id", teknisiId)
+        .eq("status", "completed")
+        .order("tanggal", { ascending: false });
+      const from = (page - 1) * limit;
+      const to = from + limit - 1;
+      query = query.range(from, to);
+      const { data, error, count } = await query;
+      if (error) {
+        console.error("❌ findCompletedByTeknisiId error:", error.message);
+        return { data: [], total: 0 };
+      }
+      return { data: data || [], total: count || 0 };
+    } catch (error) {
+      console.error("❌ findCompletedByTeknisiId exception:", error);
+      return { data: [], total: 0 };
+    }
+  },
+
   // Find complaints ready for teknisi - FIXED
   async findReadyForTeknisi(filters = {}) {
     try {
