@@ -12,6 +12,7 @@ router.post('/', ComplaintController.create);
 router.get('/', ComplaintController.getHistory);
 router.get('/:id', ComplaintController.getDetail);
 router.get('/:id/history', ComplaintController.getStatusHistory);
+router.get('/user-complaints', auth, ComplaintController.getUserComplaints);
 
 // Hanya teknisi/admin yang bisa update status
 router.patch('/:id/status', authorize('teknisi', 'admin'), ComplaintController.updateStatus);
