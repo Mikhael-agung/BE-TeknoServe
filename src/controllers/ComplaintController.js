@@ -179,12 +179,7 @@ class ComplaintController {
           );
       }
 
-      const validStatuses = [
-        "complaint",
-        "on_progress",
-        "pending",
-        "completed",
-      ];
+      const validStatuses = ['complaint', 'on_progress', 'pending', 'completed'];
       if (!status || !validStatuses.includes(status)) {
         return res
           .status(400)
