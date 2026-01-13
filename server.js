@@ -8,6 +8,7 @@ const authRoutes = require('./src/routes/auth.routes');
 const complaintRoutes = require('./src/routes/complaints.routes');
 const userRoutes = require('./src/routes/users.routes');
 const teknisiRoutes = require('./src/routes/teknisi.routes');
+const teknisiDiskusiRoutes = require("./src/routes/teknisiDiskusi.routes");
 const { notFound, errorHandler } = require('./src/middleware/errorHandler');
 
 const app = express();
@@ -25,6 +26,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/complaints', complaintRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/teknisi', teknisiRoutes);
+app.use("/api/teknisi/diskusi", teknisiDiskusiRoutes);
 
 // Health check
 app.get('/', (req, res) => {
