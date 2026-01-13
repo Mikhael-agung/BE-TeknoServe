@@ -8,6 +8,7 @@ const authRoutes = require('./src/routes/auth.routes');
 const complaintRoutes = require('./src/routes/complaints.routes');
 const userRoutes = require('./src/routes/users.routes');
 const teknisiRoutes = require('./src/routes/teknisi.routes');
+const teknisiDiskusiRoutes = require("./src/routes/teknisiDiskusi.routes");
 const { notFound, errorHandler } = require('./src/middleware/errorHandler');
 
 const app = express();
@@ -25,6 +26,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/complaints', complaintRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/teknisi', teknisiRoutes);
+app.use("/api/teknisi/diskusi", teknisiDiskusiRoutes);
 
 // Health check
 app.get('/', (req, res) => {
@@ -40,7 +42,10 @@ app.get('/', (req, res) => {
 app.use(notFound);
 app.use(errorHandler);
 
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 Server running on http://localhost:${PORT}`);
-  console.log(`📚 API Documentation: http://localhost:${PORT}/api-docs`);
+// app.listen(PORT, '0.0.0.0', () => {
+//   console.log(`🚀 Server running on http://localhost:${PORT}`);
+// });
+
+app.listen(3000, '0.0.0.0', () => {
+  console.log(`🚀 Server running on http://0.0.0.0:3000`);
 });
