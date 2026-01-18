@@ -62,7 +62,7 @@ const Complaint = {
         .from("complaints")
         .select("id, judul, kategori, status, tanggal, kota, kecamatan", {
           count: "estimated",
-        }) // ✅ changed to estimated
+        }) 
         .eq("user_id", userId)
         .order("tanggal", { ascending: false });
 
@@ -134,7 +134,7 @@ const Complaint = {
       if (complaint.teknisi_id) {
         const { data: teknisiData } = await supabase
           .from("users")
-          .select("id, username, full_name")
+          .select("id, username, full_name, phone")
           .eq("id", complaint.teknisi_id)
           .single();
         teknisi = teknisiData;
@@ -216,7 +216,7 @@ const Complaint = {
       if (teknisiIds.length > 0) {
         const { data: teknisiData } = await supabase
           .from("users")
-          .select("id, username, full_name")
+          .select("id, username, full_name, phone")
           .in("id", teknisiIds);
 
         if (teknisiData) {
